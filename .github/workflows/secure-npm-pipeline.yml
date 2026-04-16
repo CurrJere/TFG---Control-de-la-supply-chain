@@ -1,0 +1,50 @@
+# El pipeline reutilizable que otros llamarán
+
+name: "Secure NPM Pipeline"
+
+# 1. EL PUERTO DE ENTRADA: Esto permite que otros repositorios "llamen" a este workflow
+on:
+  workflow_call:
+
+# 2. POLÍTICA DE PRIVILEGIOS: Confianza Cero (Zero Trust)
+permissions:
+  contents: read           # Permiso para leer el código del Cebo
+  security-events: write   # Permiso para subir alertas a la pestaña Security
+  actions: read
+
+jobs:
+  codeql-analysis:
+    name: Análisis de Supply Chain (CodeQL)
+    runs-on: ubuntu-latest
+
+    steps:
+    # PASO A: Descargamos el código de la aplicación (El Cebo vulnerable)
+    - name: Checkout del código cliente
+      uses: actions/checkout@v4
+
+    # PASO B (LA MAGIA): Descargamos tu Framework de Seguridad en una carpeta temporal
+    # Esto es necesario porque el "runner" de GitHub necesita leer tus archivos .ql
+    - name: Checkout del Framework de Seguridad
+      uses: actions/checkout@v4
+      with:
+        repository: CurrJere/TFG---Control-de-la-supply-chain # ¡CAMBIA ESTO POR TU USUARIO!
+        path: ./.security-framework
+
+    # PASO C: Arrancamos el motor de CodeQL
+    - name: Inicializar CodeQL con reglas corporativas
+      uses: github/codeql-action/init@v3
+      with:
+        languages: javascript
+        # Le decimos a CodeQL que no use las reglas por defecto, sino TUS reglas
+        queries: ./.security-framework/javascript/src
+
+    # PASO D: Ejecutamos el análisis
+    - name: Ejecutar Análisis CodeQL
+      uses: github/codeql-action/analyze@v3
+      with:
+        category: "/language:javascript"
+
+    # PASO E: Si el código es seguro, procedemos con instalación blindada
+    # Usamos 'npm ci' (Clean Install) en lugar de 'npm install'
+    - name: Instalación Segura (npm ci)
+      run: npm ci --ignore-scripts
