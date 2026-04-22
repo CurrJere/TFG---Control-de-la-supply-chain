@@ -10,9 +10,11 @@
  */
 
 import javascript
-import semmle.javascript.packages.PackageJson
 
-from PackageJsonDependency dep
-where dep.getVersion().regexpMatch("^\\^")
-select dep,
-  "Dependencia '" + dep.getPackageName() + "' usa rango caret '" + dep.getVersion() + "'. Fija una versión exacta para evitar ataques de Supply Chain."
+from PackageJson pkg, string depName, JsonValue depNode, string depVersion
+where
+  pkg.getDependencies().getPropValue(depName) = depNode and
+  depVersion = depNode.getStringValue() and
+  depVersion.regexpMatch("^\\^.*")
+select depNode,
+  "Dependencia '" + depName + "' usa rango caret '" + depVersion + "'. Fija una versión exacta para evitar ataques de Supply Chain."
