@@ -1,12 +1,12 @@
 /**
- * @name TFG: NPM dependencia con rango caret (^)
- * @description La dependencia en package.json usa rango con caret (^). Fija una versión exacta para reducir riesgos en la cadena de suministro.
+ * @name TFG: NPM dependencia con rango tilde (~)
+ * @description La dependencia en package.json usa rango tilde (~). Fija una versión exacta para reducir riesgos en la cadena de suministro.
  * @kind problem
  * @problem.severity warning
  * @precision high
- * @id currjere/javascript/npm-caret-range
+ * @id currjere/javascript/npm-tilde-range
  * @tags security, software-supply-chain, tfg
- * @security-severity 7.0
+ * @security-severity 5.0
  */
 
 import javascript
@@ -18,7 +18,7 @@ predicate depEntry(PackageJson pj, string kind, string name, string ver) {
 }
 
 from PackageJson pj, string kind, string name, string ver
-where depEntry(pj, kind, name, ver) and ver.regexpMatch("^\\^")
+where depEntry(pj, kind, name, ver) and ver.regexpMatch("^~")
 select pj,
-  "Dependencia '" + name + "' (" + kind + ") usa rango caret '" + ver +
+  "Dependencia '" + name + "' (" + kind + ") usa rango tilde '" + ver +
   "'. Fija una versión exacta."
