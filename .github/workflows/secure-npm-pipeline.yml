@@ -1,10 +1,20 @@
 # El pipeline reutilizable que otros llamarán
-
 name: "Secure NPM Pipeline"
 
 # 1. EL PUERTO DE ENTRADA: Esto permite que otros repositorios "llamen" a este workflow
 on:
   workflow_call:
+    inputs:
+      framework-repo:
+        description: 'Repositorio del framework de seguridad (org/repo)'
+        required: false
+        default: 'CurrJere/TFG---Control-de-la-supply-chain'
+        type: string
+      framework-ref:
+        description: 'Rama, tag o SHA del framework a usar'
+        required: false
+        default: 'main'
+        type: string
 
 # 2. POLÍTICA DE PRIVILEGIOS: Confianza Cero (Zero Trust)
 permissions:
@@ -20,31 +30,35 @@ jobs:
     steps:
     # PASO A: Descargamos el código de la aplicación (El Cebo vulnerable)
     - name: Checkout del código cliente
-      uses: actions/checkout@v4
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-    # PASO B (LA MAGIA): Descargamos tu Framework de Seguridad en una carpeta temporal
-    # Esto es necesario porque el "runner" de GitHub necesita leer tus archivos .ql
+    # PASO B: Descargamos el Framework de Seguridad en una carpeta temporal
     - name: Checkout del Framework de Seguridad
-      uses: actions/checkout@v4
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       with:
-        repository: CurrJere/TFG---Control-de-la-supply-chain # ¡CAMBIA ESTO POR TU USUARIO!
+        repository: ${{ inputs.framework-repo }}
+        ref: ${{ inputs.framework-ref }}
         path: ./.security-framework
 
-    # PASO C: Arrancamos el motor de CodeQL
+    # PASO C: Fijamos la versión de Node.js para garantizar reproducibilidad
+    - name: Setup Node.js
+      uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+      with:
+        node-version: '20'
+
+    # PASO D: Arrancamos el motor de CodeQL con nuestras reglas, no las de fábrica
     - name: Inicializar CodeQL con reglas corporativas
-      uses: github/codeql-action/init@v3
+      uses: github/codeql-action/init@v4.35.3
       with:
         languages: javascript
-        # Le decimos a CodeQL que no use las reglas por defecto, sino TUS reglas
         queries: ./.security-framework/javascript/src
 
-    # PASO D: Ejecutamos el análisis
+    # PASO E: Ejecutamos el análisis
     - name: Ejecutar Análisis CodeQL
-      uses: github/codeql-action/analyze@v3
+      uses: github/codeql-action/analyze@v4.35.3
       with:
         category: "/language:javascript"
 
-    # PASO E: Si el código es seguro, procedemos con instalación blindada
-    # Usamos 'npm ci' (Clean Install) en lugar de 'npm install'
-    - name: Instalación Segura (npm ci)
+    # PASO F: Si el código es seguro, instalación blindada (lockfile + sin scripts)
+    - name: Instalación segura (npm ci con scripts deshabilitados)
       run: npm ci --ignore-scripts

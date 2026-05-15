@@ -14,7 +14,9 @@ import semmle.javascript.Files
 
 /**
  * Existe package.json en el repositorio.
- */predicate hasPackageJson() {
+ */
+
+ predicate hasPackageJson() {
   exists(File f | f.getRelativePath() = "package.json")
 }
 /**
