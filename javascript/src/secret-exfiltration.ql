@@ -37,8 +37,6 @@ class SecretSource extends DataFlow::Node {
  * Lugares peligrosos a los que NO debe llegar la información (sinks):
  *   - http.request / https.request (módulo nativo)
  *   - fetch (Node 18+) y librerías de red (axios, got, request, ...)
- *   La librería estándar de CodeQL ya modela todos esos
- *   a través de la clase ClientRequest.
  */
 class NetworkSink extends DataFlow::Node {
   NetworkSink() {
@@ -54,10 +52,10 @@ module ExfilConfig implements DataFlow::ConfigSig {
 }
 
 module ExfilFlow = TaintTracking::Global<ExfilConfig>;
+import ExfilFlow::PathGraph
 
 from ExfilFlow::PathNode source, ExfilFlow::PathNode sink
 where ExfilFlow::flowPath(source, sink)
 select sink.getNode(), source, sink,
   "Posible exfiltración: dato sensible originado en $@ alcanza una petición de red.",
   source.getNode(), "esta lectura"
-  
