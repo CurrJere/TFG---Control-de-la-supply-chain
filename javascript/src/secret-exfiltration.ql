@@ -60,3 +60,4 @@ where ExfilFlow::flowPath(source, sink)
 select sink.getNode(), source, sink,
   "Posible exfiltración: dato sensible originado en $@ alcanza una petición de red.",
   source.getNode(), "esta lectura"
+  
