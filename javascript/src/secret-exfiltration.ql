@@ -13,7 +13,6 @@
 
 import javascript
 import semmle.javascript.dataflow.TaintTracking
-import semmle.javascript.frameworks.HTTP
 
 /**
  * Lugares de los que parte la información sensible (sources):
@@ -37,15 +36,15 @@ class SecretSource extends DataFlow::Node {
 /**
  * Lugares peligrosos a los que NO debe llegar la información (sinks):
  *   - http.request / https.request (módulo nativo)
- *   - fetch (Node 18+) y librerías de red
+ *   - fetch (Node 18+) y librerías de red (axios, got, request, ...)
+ *   La librería estándar de CodeQL ya modela todos esos
+ *   a través de la clase ClientRequest.
  */
 class NetworkSink extends DataFlow::Node {
   NetworkSink() {
-    // El framework HTTP de la librería estándar de CodeQL ya modela
-    // axios, fetch, http.request, https.request, request, got, etc.
-    this = any(HTTP::ClientRequest req).getUrl()
+    this = any(ClientRequest req).getUrl()
     or
-    this = any(HTTP::ClientRequest req).getADataNode()
+    this = any(ClientRequest req).getADataNode()
   }
 }
 
