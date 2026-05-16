@@ -1,67 +1,30 @@
-# Endurecimiento de CI/CD frente a gusanos de supply chain en NPM
+## Arquitectura de doble capa
 
-Framework reutilizable de seguridad para pipelines de CI/CD basados en
-GitHub Actions, diseñado para mitigar la familia de ataques de tipo
-"supply chain worm" en el ecosistema npm (vector Shai-Hulud y similares).
+El framework aplica defensa en profundidad combinando dos paradigmas
+complementarios, alineados con las mejores prácticas del sector financiero:
 
-Trabajo Fin de Grado — Grado en Ingeniería Informática
-Universidad Francisco de Vitoria, convocatoria de [mes] de 2026
-Autor: Francisco Jesús Daza Sánchez
+### Capa 1 — Validación estructural
+`scripts/validate-package-json.sh`
 
-## ¿Qué hace este framework?
+Analiza el manifiesto `package.json` del cliente mediante parsing JSON
+nativo, detectando los siguientes vectores de cadena de suministro:
 
-Aplica cinco controles de defensa sobre cualquier repositorio cliente
-que lo invoque mediante `workflow_call`:
+| Hallazgo | Severidad |
+|---|---|
+| Versión `latest` o wildcard `*` | CRITICAL |
+| Rango caret (`^`) | HIGH |
+| Rango tilde (`~`) | MEDIUM |
+| Ausencia de `package-lock.json` | HIGH |
 
-1. Bloqueo de dependencias con versión `latest` o wildcard (`*`).
-2. Detección de rangos abiertos con caret (`^`) y tilde (`~`).
-3. Verificación de la existencia obligatoria de `package-lock.json`.
-4. Análisis de flujo de datos (taint tracking) para detectar
-   exfiltración de secretos hacia red externa.
-5. Instalación reproducible con `npm ci --ignore-scripts`.
+Las alertas se publican como anotaciones en los logs del pipeline mediante
+los comandos `::error::` y `::warning::` de GitHub Actions.
 
-## Uso
+### Capa 2 — Análisis semántico
+`javascript/src/secret-exfiltration.ql`
 
-En tu repositorio cliente, crea `.github/workflows/ci.yml`:
+Aplica CodeQL con análisis de flujo de datos (taint tracking) para
+detectar flujos desde lectura de variables de entorno o ficheros `.env`
+hacia peticiones HTTP/HTTPS salientes (vector de gusano Shai-Hulud).
 
-\`\`\`yaml
-name: App Pipeline Protected
-
-on:
-  push:
-    branches: [ "main" ]
-
-jobs:
-  security-check:
-    uses: CurrJere/TFG---Control-de-la-supply-chain/.github/workflows/secure-npm-pipeline.yml@main
-    permissions:
-      contents: read
-      security-events: write
-      actions: read
-\`\`\`
-
-Las alertas aparecerán en la pestaña Security → Code scanning del
+Las alertas se publican en la pestaña Security → Code scanning del
 repositorio cliente.
-
-## Estructura del repositorio
-
-\`\`\`
-.github/workflows/secure-npm-pipeline.yml    Pipeline reutilizable
-.npmrc                                        Configuración de seguridad de npm
-javascript/codeql-pack.yml                    Paquete CodeQL
-javascript/src/                               Reglas CodeQL personalizadas
-\`\`\`
-
-## Reglas CodeQL incluidas
-
-| Fichero | Severidad | Detecta |
-|---|---|---|
-| critical-latest-or-wildcard.ql | error | `"dep": "latest"` o `"dep": "*"` |
-| high-caret-range.ql | warning | `"dep": "^1.2.3"` |
-| medium-tilde-range.ql | warning | `"dep": "~1.2.3"` |
-| missing-package-lock.ql | warning | Ausencia de package-lock.json |
-| secret-exfiltration.ql | error | Flujo de `process.env` o `.env` hacia red saliente |
-
-## Licencia
-
-MIT. Ver fichero LICENSE.

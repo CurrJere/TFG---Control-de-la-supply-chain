@@ -15,6 +15,11 @@ on:
         required: false
         default: 'main'
         type: string
+      fail-on-findings:
+        description: 'Si true, el pipeline falla cuando la Capa 1 detecta problemas en package.json'
+        required: false
+        default: 'false'
+        type: string
 
 # 2. POLÍTICA DE PRIVILEGIOS: Confianza Cero (Zero Trust)
 permissions:
@@ -23,8 +28,8 @@ permissions:
   actions: read
 
 jobs:
-  codeql-analysis:
-    name: Análisis de Supply Chain (CodeQL)
+  security-analysis:
+    name: Análisis de Supply Chain
     runs-on: ubuntu-latest
 
     steps:
@@ -46,27 +51,25 @@ jobs:
       with:
         node-version: '20'
 
-    # PASO D: Arrancamos el motor de CodeQL con nuestras reglas, no las de fábrica
-    - name: Inicializar CodeQL con reglas corporativas
+    # PASO D: Capa 1 - Validación estructural del package.json (script bash + Node)
+    - name: Capa 1 - Validación estructural de package.json
+      env:
+        FAIL_ON_FINDINGS: ${{ inputs.fail-on-findings }}
+      run: bash ./.security-framework/scripts/validate-package-json.sh
+
+    # PASO E: Capa 2 - Inicializa CodeQL para análisis semántico (taint tracking)
+    - name: Capa 2 - Inicializar CodeQL
       uses: github/codeql-action/init@v4.35.3
       with:
         languages: javascript
         queries: ./.security-framework/javascript/src
-        config: |
-          paths:
-            - "**/*.js"
-            - "**/*.ts"
-            - "**/package.json"
-            - "**/package-lock.json"
-          paths-ignore:
-            - "node_modules"
 
-    # PASO E: Ejecutamos el análisis
-    - name: Ejecutar Análisis CodeQL
+    # PASO F: Ejecuta el análisis semántico
+    - name: Capa 2 - Ejecutar análisis CodeQL
       uses: github/codeql-action/analyze@v4.35.3
       with:
         category: "/language:javascript"
 
-    # PASO F: Si el código es seguro, instalación blindada (lockfile + sin scripts)
+    # PASO G: Instalación blindada (lockfile + sin scripts)
     - name: Instalación segura (npm ci con scripts deshabilitados)
       run: npm ci --ignore-scripts
