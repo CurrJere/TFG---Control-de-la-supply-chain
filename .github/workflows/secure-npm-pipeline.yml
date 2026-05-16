@@ -52,6 +52,14 @@ jobs:
       with:
         languages: javascript
         queries: ./.security-framework/javascript/src
+        config: |
+          paths:
+            - "**/*.js"
+            - "**/*.ts"
+            - "**/package.json"
+            - "**/package-lock.json"
+          paths-ignore:
+            - "node_modules"
 
     # PASO E: Ejecutamos el análisis
     - name: Ejecutar Análisis CodeQL
