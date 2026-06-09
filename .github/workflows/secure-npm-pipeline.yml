@@ -59,14 +59,14 @@ jobs:
 
     # PASO E: Capa 2 - Inicializa CodeQL para análisis semántico (taint tracking)
     - name: Capa 2 - Inicializar CodeQL
-      uses: github/codeql-action/init@v4.35.3
+      uses: github/codeql-action/init@e46ed2cbd01164d986452f91f178727624ae40d7 # v4.35.3
       with:
         languages: javascript
         queries: ./.security-framework/javascript/src
 
     # PASO F: Ejecuta el análisis semántico
     - name: Capa 2 - Ejecutar análisis CodeQL
-      uses: github/codeql-action/analyze@v4.35.3
+      uses: github/codeql-action/analyze@e46ed2cbd01164d986452f91f178727624ae40d7 # v4.35.3
       with:
         category: "/language:javascript"
 
