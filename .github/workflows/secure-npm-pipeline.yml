@@ -1,7 +1,6 @@
 # El pipeline reutilizable que otros llamarán
 name: "Secure NPM Pipeline"
 
-# 1. EL PUERTO DE ENTRADA: Esto permite que otros repositorios "llamen" a este workflow
 on:
   workflow_call:
     inputs:
@@ -21,10 +20,10 @@ on:
         default: 'false'
         type: string
 
-# 2. POLÍTICA DE PRIVILEGIOS: Confianza Cero (Zero Trust)
+# Confianza Cero (Zero Trust)
 permissions:
-  contents: read           # Permiso para leer el código del Cebo
-  security-events: write   # Permiso para subir alertas a la pestaña Security
+  contents: read
+  security-events: write
   actions: read
 
 jobs:
@@ -33,11 +32,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    # PASO A: Descargamos el código de la aplicación (El Cebo vulnerable)
+    # PASO A: Checkout del código cliente (el Cebo)
     - name: Checkout del código cliente
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-    # PASO B: Descargamos el Framework de Seguridad en una carpeta temporal
+    # PASO B: Checkout del Framework de Seguridad
     - name: Checkout del Framework de Seguridad
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       with:
@@ -45,30 +44,48 @@ jobs:
         ref: ${{ inputs.framework-ref }}
         path: ./.security-framework
 
-    # PASO C: Fijamos la versión de Node.js para garantizar reproducibilidad
+    # PASO C: Node.js fijado
     - name: Setup Node.js
       uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
       with:
         node-version: '20'
 
-    # PASO D: Capa 1 - Validación estructural del package.json (script bash + Node)
+    # PASO D: Capa 1 - Validación estructural del package.json
     - name: Capa 1 - Validación estructural de package.json
       env:
         FAIL_ON_FINDINGS: ${{ inputs.fail-on-findings }}
       run: bash ./.security-framework/scripts/validate-package-json.sh
 
-    # PASO E: Capa 2 - Inicializa CodeQL para análisis semántico (taint tracking)
+    # PASO E: Capa 2 - Inicializa CodeQL
     - name: Capa 2 - Inicializar CodeQL
       uses: github/codeql-action/init@e46ed2cbd01164d986452f91f178727624ae40d7 # v4.35.3
       with:
         languages: javascript
         queries: ./.security-framework/javascript/src
 
-    # PASO F: Ejecuta el análisis semántico
+    # PASO F: Análisis semántico  (« NUEVO »: guarda el SARIF en una carpeta para el gate)
     - name: Capa 2 - Ejecutar análisis CodeQL
       uses: github/codeql-action/analyze@e46ed2cbd01164d986452f91f178727624ae40d7 # v4.35.3
       with:
         category: "/language:javascript"
+        output: codeql-results          # « NUEVO »: escribe el resultado en disco (además de subirlo a Security)
+
+    # PASO F-bis: GATE  (« NUEVO »)  -- si la query de exfiltración encontró algo, BLOQUEA el build.
+    # La exfiltración de secretos es crítica: detiene el pipeline SIEMPRE (objetivo 1: 100% de bloqueo).
+    - name: Capa 2 - Gate de exfiltración
+      run: |
+        shopt -s nullglob
+        total=0
+        for f in codeql-results/*.sarif; do
+          n=$(jq '[.runs[]?.results[]? | select((.ruleId // "") | test("secret-exfiltration"))] | length' "$f")
+          total=$((total + n))
+        done
+        echo "Hallazgos de la query de exfiltración: $total"
+        if [ "$total" -gt 0 ]; then
+          echo "::error::[CRITICAL] Exfiltración de secretos detectada por CodeQL. Pipeline BLOQUEADO."
+          exit 1
+        fi
+        echo "✅ Sin exfiltración detectada."
 
     # PASO G: Instalación blindada (lockfile + sin scripts)
     - name: Instalación segura (npm ci con scripts deshabilitados)
