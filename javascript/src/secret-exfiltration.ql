@@ -1,8 +1,8 @@
 /**
  * @name TFG: Exfiltración de secretos a red externa
- * @description Detecta flujo desde lectura de variables de entorno
- *              o .env hacia peticiones HTTP salientes. Vector típico
- *              de gusano de supply chain (Shai-Hulud).
+ * @description Detecta el flujo de datos desde la lectura de variables de entorno 
+ * o archivos .env hacia peticiones HTTP de salida. Vector de ataque 
+ * característico de gusanos de cadena de suministro como Shai-Hulud.
  * @kind path-problem
  * @problem.severity error
  * @precision high
@@ -15,16 +15,15 @@ import javascript
 import semmle.javascript.dataflow.TaintTracking
 
 /**
- * Lugares de los que parte la información sensible (sources):
- *   - process.env.<lo-que-sea>
- *   - fs.readFileSync('.env', ...) y similares
+ * Fuentes de información sensible (Sources)
+ * Mapeamos los puntos de entrada donde se cargan o leen credenciales del sistema.
  */
 class SecretSource extends DataFlow::Node {
   SecretSource() {
-    // process.env.X o process.env['X']
+    // Captura lecturas del tipo process.env.TOKEN o process.env['PASSWORD']
     this = DataFlow::globalVarRef("process").getAPropertyRead("env").getAPropertyRead(_)
     or
-    // fs.readFileSync('.env'), fs.readFile('.env'), etc.
+    // Captura llamadas al módulo nativo 'fs' que involucren archivos de entorno (.env)
     exists(DataFlow::CallNode call |
       call = DataFlow::moduleMember("fs", _).getACall() and
       call.getArgument(0).asExpr().(StringLiteral).getValue().regexpMatch(".*\\.env.*") and
@@ -34,18 +33,20 @@ class SecretSource extends DataFlow::Node {
 }
 
 /**
- * Lugares peligrosos a los que NO debe llegar la información (sinks):
- *   - http.request / https.request (módulo nativo)
- *   - fetch (Node 18+) y librerías de red (axios, got, request, ...)
+ * Puntos de salida de riesgo (Sinks)
+ * Modelamos el envío de información mediante peticiones de red salientes.
  */
 class NetworkSink extends DataFlow::Node {
   NetworkSink() {
+    // Utilizamos la abstracción ClientRequest para cubrir tanto las funciones HTTP/HTTPS 
+    // nativas como abstracciones de alto nivel (fetch, axios, etc.)
     this = any(ClientRequest req).getUrl()
     or
     this = any(ClientRequest req).getADataNode()
   }
 }
 
+// Configuración del motor de Taint Tracking (Análisis de flujo de datos contaminados)
 module ExfilConfig implements DataFlow::ConfigSig {
   predicate isSource(DataFlow::Node n) { n instanceof SecretSource }
   predicate isSink(DataFlow::Node n)   { n instanceof NetworkSink   }
